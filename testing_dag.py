@@ -1,16 +1,14 @@
-#!/usr/bin/env python
-# coding: utf-8
+import datetime
+import os
 
-# In[ ]:
-
-
-from airflow import models
+from airflow.models import Variable,DAG
 from airflow.contrib.operators import dataproc_operator
 from airflow.utils import trigger_rule
+import logging
 
-output_file = os.path.join(
-    models.Variable.get('gcs_bucket'), 'wordcount',
-    datetime.datetime.now().strftime('%Y%m%d-%H%M%S')) + os.sep
+
+log = logging.getLogger(__name__)
+
 
 yesterday = datetime.datetime.combine(
     datetime.datetime.today() - datetime.timedelta(1),
@@ -22,31 +20,36 @@ default_dag_args = {
     'email_on_retry': False,
     'retries': 1,
     'retry_delay': datetime.timedelta(minutes=5),
-    'project_id': models.Variable.get('gcp_project')
+    'project_id': Variable.get('gcp_project')
 }
 
-with models.DAG(
-        'composer_hadoop_tutorial',
+with DAG(
+        'creating_cluster',
         schedule_interval=datetime.timedelta(days=1),
         default_args=default_dag_args) as dag:
     
-    create_dataproc_cluster = dataproc_operator.DataprocClusterCreateOperator(
-        task_id='create_dataproc_cluster',
-        # Give the cluster a unique name by appending the date scheduled.
-        # See https://airflow.apache.org/code.html#default-variables
-        cluster_name='testing-cluster-{{ ds_nodash }}',
-        num_workers=2,
-        zone=models.Variable.get('gce_zone'),
-        master_machine_type='n1-standard-1',
-        worker_machine_type='n1-standard-1')
-    
-        # Delete Cloud Dataproc cluster.
-    delete_dataproc_cluster = dataproc_operator.DataprocClusterDeleteOperator(
-        task_id='delete_dataproc_cluster',
-        cluster_name='testing-cluster-{{ ds_nodash }}',
-        # Setting trigger_rule to ALL_DONE causes the cluster to be deleted
-        # even if the Dataproc job fails.
-        trigger_rule=trigger_rule.TriggerRule.ALL_DONE)
-    
-    create_dataproc_cluster >> delete_dataproc_cluster
-
+        log.info('creating cluster')
+        create_dataproc_cluster = dataproc_operator.DataprocClusterCreateOperator(
+            task_id='create_dataproc_cluster',
+            # Give the cluster a unique name by appending the date scheduled.
+            # See https://airflow.apache.org/code.html#default-variables
+            cluster_name=Variable.get('cluster_name'),
+            num_workers=2,
+            image_version="1.4",
+            init_actions_uris =["gs://goog-dataproc-initialization-actions-us-central1/python/pip-install.sh"],
+            region=Variable.get('region'),
+            metadata={"PIP_PACKAGES":"spark-nlp==2.7.5 fsspec gcsfs"},
+            #zone=Variable.get('gce_zone'),
+            master_machine_type='n1-standard-2',
+            worker_machine_type='n1-standard-2')
+        
+            # Delete Cloud Dataproc cluster.
+        delete_dataproc_cluster = dataproc_operator.DataprocClusterDeleteOperator(
+            task_id='delete_dataproc_cluster',
+            cluster_name=Variable.get('cluster_name'),
+            region=Variable.get('region'),
+            # Setting trigger_rule to ALL_DONE causes the cluster to be deleted
+            # even if the Dataproc job fails.
+            trigger_rule=trigger_rule.TriggerRule.ALL_DONE)
+        
+        create_dataproc_cluster >> delete_dataproc_cluster
