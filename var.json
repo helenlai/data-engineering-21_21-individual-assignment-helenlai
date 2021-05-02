@@ -1,0 +1,15 @@
+{
+    "region":"us-central1",
+    "spark_script_path":"gs://de-indv-bucket/py_script/lr_spark.py",
+    "job_name":"text_classification_lr",
+    "cluster_name":"de-cluster",
+    "jar_path":"gs://de-indv-bucket/extra_jars/spark-nlp-assembly-2.7.5.jar",
+    "gcp_project":"de-indv_project",
+    "tag":"machine-learning",
+    "gcp_bucket":"de-indv-bucket",
+    "gcp_project":"de-indv-project",
+    "val_ratio":0.1,
+    "test_ratio":0.1
+}
+
+
