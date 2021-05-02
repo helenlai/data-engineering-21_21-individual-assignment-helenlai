@@ -17,7 +17,7 @@ from pyspark.ml import Pipeline
 from pyspark.sql.functions import col
 from pyspark.sql import SQLContext
 from pyspark.ml.evaluation import BinaryClassificationEvaluator 
-
+from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 import gcsfs
 
 
@@ -26,10 +26,11 @@ spark = SparkSession.builder \
     .getOrCreate()
 
 
+prefix='gs://de-indv-bucket'
 
-tr_df=pd.read_pickle('gs://europe-west2-de-composer-en-47f87717-bucket/data/tr_df.pkl')
-val_df=pd.read_pickle('gs://europe-west2-de-composer-en-47f87717-bucket/data/val_df.pkl')
-test_df=pd.read_pickle('gs://europe-west2-de-composer-en-47f87717-bucket/data/test_df.pkl')
+tr_df=pd.read_parquet(prefix+'/data/tr_df.parquet.gzip')
+val_df=pd.read_parquet(prefix+'/data/val_df.parquet.gzip')
+test_df=pd.read_parquet(prefix+'/data/test_df.parquet.gzip')
 
 
 
@@ -88,7 +89,7 @@ val_pred=pipeline_model.transform(val_df)
 test_pred=pipeline_model.transform(test_df)
 
 
-from pyspark.ml.evaluation import MulticlassClassificationEvaluator
+pipeline_model.save(prefix+"/models/lr")
 
 
 evaluator = MulticlassClassificationEvaluator(
@@ -105,8 +106,9 @@ for pred in [tr_pred,val_pred,test_pred]:
 PROJECT_ID='de-indv-project'    
 fs = gcsfs.GCSFileSystem(project=PROJECT_ID)
 
-with fs.open('gs://europe-west2-de-composer-en-47f87717-bucket/result/result_lr.txt','wb') as handle:
-    pickle.dump(acc_lst,handle)
+with fs.open(prefix+'/results/result_lr.txt','w') as handle:
+    handle.write(str(acc_lst))
+    #pickle.dump(acc_lst,handle)
     
 
 
