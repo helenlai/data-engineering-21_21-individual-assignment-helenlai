@@ -41,34 +41,39 @@ test_df=sqlContext.createDataFrame(test_df)
 input_df.show(4)
 
 
-REG=0.3
+
 document_assembler = DocumentAssembler() \
     .setInputCol("question") \
-    .setOutputCol("document")# convert document to array of tokens
+    .setOutputCol("document")
+# converting question content into arrays of tokens
 tokenizer = Tokenizer() \
   .setInputCols(["document"]) \
   .setOutputCol("token")
 normalizer = Normalizer() \
     .setInputCols(["token"]) \
-    .setOutputCol("normalized")# remove stopwords
+    .setOutputCol("normalized")
+# remove stopwords based on the dafulat stopword dictionary
 stopwords_cleaner = StopWordsCleaner()\
       .setInputCols("normalized")\
       .setOutputCol("cleanTokens")\
-      .setCaseSensitive(False)# stems tokens to bring it to root form
+      .setCaseSensitive(False)
+# converting tokens to its root form 
 stemmer = Stemmer() \
     .setInputCols(["cleanTokens"]) \
-    .setOutputCol("stem")# Convert custom document structure to array of tokens.
-
+    .setOutputCol("stem")
+#output document structure as token arrays
 
 finisher = Finisher() \
     .setInputCols(["stem"]) \
     .setOutputCols(["token_features"]) \
     .setOutputAsArray(True) \
-    .setCleanAnnotations(False)# To generate Term Frequency
-
+    .setCleanAnnotations(False)
+# Compute TF-IDF as text featurisation
 hashingTF = HashingTF(inputCol="token_features", outputCol="rawFeatures", numFeatures=1000)# To generate Inverse Document Frequency
 idf = IDF(inputCol="rawFeatures", outputCol="features", minDocFreq=5)# convert labels (string) to integers. Easy to process compared to string.
-
+#setting the regularisation parameter
+REG=0.3
+# Initialisation the logistic regression
 lr = LogisticRegression(featuresCol="features", labelCol='outcome', regParam=REG)
 
 nlp_pipeline = Pipeline(
@@ -82,45 +87,32 @@ nlp_pipeline = Pipeline(
             idf,
             lr])
 
-
+#inference on train,test and validation set
 pipeline_model=nlp_pipeline.fit(input_df)
 tr_pred=pipeline_model.transform(input_df)
 val_pred=pipeline_model.transform(val_df)
 test_pred=pipeline_model.transform(test_df)
 
-
+#saving the trained pipeline model
 pipeline_model.save(prefix+"/models/lr")
 
 
 evaluator = MulticlassClassificationEvaluator(
     labelCol="outcome", predictionCol="prediction", metricName="accuracy")
 
-
+#computing accuracy on train, test and validation set
 evaluator.evaluate(val_pred)
 acc_lst=[]
 for pred in [tr_pred,val_pred,test_pred]:    
     accuracy = evaluator.evaluate(pred)
     acc_lst.append(accuracy)
     print("Accuracy = %g" % (accuracy))
-
-PROJECT_ID='de-indv-project'    
+   
+#saving result
 fs = gcsfs.GCSFileSystem(project=PROJECT_ID)
-
 with fs.open(prefix+'/results/result_lr.txt','w') as handle:
     handle.write(str(acc_lst))
-    #pickle.dump(acc_lst,handle)
     
-
-
-
-classsifierdl = ClassifierDLApproach()\
-.setInputCols(["sentence_embeddings"])\
-.setOutputCol("class")\
-.setLabelColumn("outcome")\
-.setMaxEpochs(5)\
-.setEnableOutputLogs(True)
-
-
 
 
 
